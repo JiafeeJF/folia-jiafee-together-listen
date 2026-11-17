@@ -7,6 +7,10 @@
 1.4.1 修复普通恢复播放被旧暂停快照拉回零进度：忙碌期间保留播放意图，确认前不校正进度；只有双方都在播放且没有待确认操作才进行时钟校正。快速暂停或断开会取消未提交的恢复播放。
 
 本版是重新移植后的联调版。最低要求稳定 Folium 1.7（清单 Folia >=0.7.22），以本地官方 0.7.28 源码检查。不要把自动化测试通过当作双端真实音源验收完成。
+## 运行截图
+
+<img width="2557" height="1376" alt="submission-connected" src="https://github.com/user-attachments/assets/c3041eeb-1643-40b9-86b1-8efb83d05843" />
+<img width="2560" height="1380" alt="image" src="https://github.com/user-attachments/assets/2308db5c-0687-44ec-93bf-9e405bb87f18" />
 
 ## 实现边界
 

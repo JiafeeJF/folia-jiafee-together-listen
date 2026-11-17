@@ -1,5 +1,5 @@
-import { authoritativePosition } from './playback-core.mjs?v=1.4.2';
-import { OVERLAY_STYLE, PANEL_ENTRY_STYLE } from './styles.mjs?v=1.4.2';
+import { authoritativePosition } from './playback-core.mjs?v=1.4.3';
+import { OVERLAY_STYLE, PANEL_ENTRY_STYLE } from './styles.mjs?v=1.4.3';
 
 const node = (tag, className, text) => {
   const element = document.createElement(tag);
@@ -132,7 +132,7 @@ export function mountTogetherOverlay(folium, bridge, container, ctx, controller)
             </section>
             <section class="together-section together-connect-section">
               <div class="together-section-head"><div><h3>直接连接</h3><p>公网、DDNS 或私有组网地址</p></div></div>
-              <div class="together-connect-grid"><label><span>TCP 地址（IP:端口 / 域名:端口）</span><input data-role="address" placeholder="192.168.1.20:17861"></label><label><span>6 位授权码（局域网可留空）</span><input data-role="auth" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="公网连接时填写"></label></div>
+              <div class="together-connect-grid"><label><span>TCP 地址（IP:端口 / 域名:端口）</span><input data-role="address" placeholder="192.168.1.20:17861"></label><label><span>6 位授权码</span><input data-role="auth" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="所有连接均需填写"></label></div>
               <div class="together-action-row"><button class="together-primary-btn" data-action="connect" type="button">加入服务器</button><button class="together-secondary-btn" data-action="save-address" type="button">保存地址</button></div>
             </section>
             <section class="together-section together-saved-section">
@@ -142,7 +142,7 @@ export function mountTogetherOverlay(folium, bridge, container, ctx, controller)
           </div>
           <div class="together-room-view" data-view="room" hidden>
             <section class="together-room-summary"><div><h3 data-role="room-name">一起听服务器</h3><p data-role="room-state">0/2 · idle</p></div><div class="together-room-meta"><span class="together-network-quality" data-role="quality" data-quality="measuring"><i></i><span data-role="quality-text">检测线路</span></span><div class="together-members" data-role="members-label">等待成员</div></div></section>
-            <section class="together-host-info" data-role="host" hidden><div class="together-host-details"><span>TCP 一起听服务器已开启 · 局域网免码，公网需要授权码</span><code data-role="host-address"></code><small>FRP 必须使用 type=tcp</small></div><div class="together-host-code"><span>授权码</span><strong data-role="host-code">------</strong></div><div class="together-host-actions"><button class="together-secondary-btn" data-action="copy-address" type="button">复制地址</button><button class="together-secondary-btn" data-action="copy-code" type="button">复制授权码</button></div></section>
+            <section class="together-host-info" data-role="host" hidden><div class="together-host-details"><span>TCP 一起听服务器已开启 · 加入均需授权码</span><code data-role="host-address"></code><small>FRP 必须使用 type=tcp</small></div><div class="together-host-code"><span>授权码</span><strong data-role="host-code">------</strong></div><div class="together-host-actions"><button class="together-secondary-btn" data-action="copy-address" type="button">复制地址</button><button class="together-secondary-btn" data-action="copy-code" type="button">复制授权码</button></div></section>
             <section class="together-now-playing"><div class="together-now-copy"><span>当前同步状态</span><h3 data-role="track-title">等待播放第一首歌</h3><p data-role="track-artist">请使用 Folia 原生播放器开始播放</p></div><div class="together-room-progress"><i data-role="progress"></i></div></section>
             <div class="together-room-footer"><span>断线后将自动重连并获取最新状态</span><button class="together-danger-btn" data-action="leave" type="button">断开连接</button></div>
           </div>

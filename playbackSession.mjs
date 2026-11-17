@@ -1,7 +1,7 @@
-import { PlaybackController } from './vendorPlaybackCore.mjs?v=1.4.2';
-import { FoliumPlayerAdapter } from './foliumPlayerAdapter.mjs?v=1.4.2';
-import { canonicalSongKey, serializeTrack, protocolMode } from './playback-core.mjs?v=1.4.2';
-import { queueEdits } from './queue-sync.mjs?v=1.4.2';
+import { PlaybackController } from './vendorPlaybackCore.mjs?v=1.4.3';
+import { FoliumPlayerAdapter } from './foliumPlayerAdapter.mjs?v=1.4.3';
+import { canonicalSongKey, serializeTrack, protocolMode } from './playback-core.mjs?v=1.4.3';
+import { queueEdits } from './queue-sync.mjs?v=1.4.3';
 
 // Latest Mineradio authority controller, with Folium events converted to local intents here only.
 export class PlaybackSession {

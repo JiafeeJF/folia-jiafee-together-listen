@@ -48,7 +48,6 @@ test('track and envelope validation keep the 2.3.0 wire shape', () => {
 test('two native TCP clients authorize, synchronize authority and exchange chat', async (t) => {
     const service = new RoomService({
         serverId: 'test-server', name: 'Test Room', authorizationCode: '482731', port: 0,
-        allowLanWithoutAuthorization: false,
     });
     await service.start();
     const first = manager('First');
@@ -103,7 +102,6 @@ test('two native TCP clients authorize, synchronize authority and exchange chat'
 test('paired room stays empty until explicit first song and both READY before GO', async (t) => {
     const service = new RoomService({
         serverId: 'first-song-test', name: 'First Song', authorizationCode: '482731', port: 0,
-        allowLanWithoutAuthorization: false,
     });
     await service.start();
     const first = manager('First');

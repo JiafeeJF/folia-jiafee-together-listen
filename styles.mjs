@@ -63,6 +63,15 @@ button { cursor: pointer; }
   position: fixed; z-index: 40; inset: 0;
   pointer-events: none;
 }
+.together-switch-notice {
+  position:fixed; z-index:43; top:8px; left:50%; transform:translateX(-50%);
+  display:flex; align-items:center; gap:7px; min-height:28px; padding:5px 12px;
+  border:1px solid var(--tl-line-strong); border-radius:7px;
+  background:var(--tl-window); color:var(--tl-label); box-shadow:0 6px 24px rgba(0,0,0,.22);
+  backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px);
+  font-size:11px; font-weight:650; white-space:nowrap; pointer-events:none;
+}
+.together-switch-notice i { width:6px; height:6px; border-radius:50%; background:var(--tl-accent); animation:together-pulse 1.2s ease-in-out infinite; }
 .together-modal-mask {
   position: fixed; z-index: 39; right: 20px; bottom: 76px;
   width: min(360px,calc(100vw - 24px)); max-height: min(640px,calc(100vh - 100px));

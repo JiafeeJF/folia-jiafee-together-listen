@@ -1,6 +1,6 @@
-import { PlaybackSession } from './playbackSession.mjs?v=1.4.3';
-import { getLocalUserProfile } from './accountSync.mjs?v=1.4.3';
-import { mountTogetherOverlay, mountTogetherPanelEntry } from './overlay-ui.mjs?v=1.4.3';
+import { PlaybackSession } from './playbackSession.mjs?v=1.4.5';
+import { getLocalUserProfile } from './accountSync.mjs?v=1.4.5';
+import { mountTogetherOverlay, mountTogetherPanelEntry } from './overlay-ui.mjs?v=1.4.5';
 
 // UI/RPC composition; playback state belongs to PlaybackSession.
 export class FoliaTogetherBridge {
@@ -14,7 +14,7 @@ export class FoliaTogetherBridge {
         this.lastMessage = null;
         this.disposed = false;
         this.profileExecution = Promise.resolve();
-        this.session = new PlaybackSession(folium, (...args) => this.send(...args), error => this.report(error));
+        this.session = new PlaybackSession(folium, (...args) => this.send(...args), error => this.report(error), () => this.notify());
     }
     get connected() { return this.status.connectionState === 'connected'; }
     subscribe(listener) { this.listeners.add(listener); listener(); return () => this.listeners.delete(listener); }
@@ -35,6 +35,9 @@ export class FoliaTogetherBridge {
         on('playback.stateChanged', ({ state }) => this.session.state(state));
         on('playback.seeked', ({ position }) => this.session.seek(position));
         on('playback.queueChanged', event => this.session.queueChanged(event));
+        // The hook must decide synchronously; notification events above may be deferred.
+        this.disposers.push(this.folium.events.on('playback.beforePlay', event => this.session.beforePlay(event)));
+        this.disposers.push(this.folium.events.on('lyrics.transform', event => this.session.transformLyrics(event)));
         on('playback.loopModeChanged', ({ mode }) => {
             if (this.session.canPublish() && (mode === 'one' ? 'single' : 'loop') !== this.room.mode)
                 return this.session.core.request('SET_MODE', { mode: mode === 'one' ? 'single' : 'loop' });

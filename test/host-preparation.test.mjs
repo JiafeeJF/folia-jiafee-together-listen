@@ -60,9 +60,30 @@ test('cancelled preparation cannot report ready or issue further playback operat
     assert.equal(f.calls.length, count);
 });
 
+test('late playback after the first pause is brought back to zero before READY', async t => {
+    const f = fixture(t), adapter = new FoliumPlayerAdapter(f.folium, () => null);
+    t.after(() => adapter.dispose());
+    const originalRead = f.host.getState;
+    let restarted = false;
+    const lateStart = setTimeout(() => {
+        restarted = true;
+        f.host.seek(0.9);
+    }, 420);
+    t.after(() => clearTimeout(lateStart));
+    const begin = Date.now();
+    assert.equal(await adapter.waitUntilReady('netease:test', () => true), true);
+    assert.equal(restarted, true, 'the host must be observed after its late start');
+    assert.ok(Date.now() - begin >= 700, 'READY needs a sustained quiet window');
+    assert.equal(originalRead().state, 'paused');
+    assert.ok(originalRead().position <= 0.5);
+    assert.equal(f.calls.filter(call => call[0] === 'seek').length, 3,
+        'one late host seek plus one bounded recovery seek');
+});
+
 test('a host that refuses pause never reports ready', async t => {
     const f = fixture(t, { refusesPause: true }), adapter = new FoliumPlayerAdapter(f.folium, () => null);
     t.after(() => adapter.dispose());
+    adapter.preparationTimeoutMs = 900;
     assert.equal(await adapter.waitUntilReady('netease:test', () => true), false);
     assert.equal(f.host.getState().state, 'playing');
 });
@@ -80,6 +101,7 @@ test('a paused label with a moving media clock cannot report ready', async t => 
     f.host.getState = () => ({ ...read(), state: 'paused' });
     const adapter = new FoliumPlayerAdapter(f.folium, () => null);
     t.after(() => adapter.dispose());
+    adapter.preparationTimeoutMs = 900;
     assert.equal(await adapter.waitUntilReady('netease:test', () => true), false);
 });
 
@@ -108,4 +130,99 @@ test('prepared GO removes fade drift once; subsequent PLAY does not rewind', asy
         serverTimestamp: Date.now() } }, true, 'a');
     assert.equal(f.calls.filter(item => item[0] === 'seek').length, 2);
     assert.equal(f.host.getState().position, 34);
+});
+
+test('a new song that starts before playQueueItem resolves is paused immediately', async t => {
+    const target = { source: 'netease', id: 'target', ref: 'target' };
+    let song = { source: 'netease', id: 'old', ref: 'old' };
+    let state = 'playing', resolvedAt = 0;
+    const pauseTimes = [];
+    const timers = [];
+    const host = {
+        getQueue: () => ({ items: [{ index: 0, song: target }] }),
+        getState: () => ({ song, state, position: 0 }),
+        playQueueItem: () => new Promise(resolve => {
+            timers.push(setTimeout(() => { song = target; state = 'playing'; }, 30));
+            timers.push(setTimeout(() => { resolvedAt = Date.now(); resolve(true); }, 350));
+        }),
+        pause: () => { if (song === target) { pauseTimes.push(Date.now()); state = 'paused'; } },
+    };
+    t.after(() => timers.forEach(clearTimeout));
+    const adapter = new FoliumPlayerAdapter({ playback: host, omni: {}, ui: { toast() {} }, log: { warn() {} } }, () => null);
+    t.after(() => adapter.dispose());
+    assert.equal(await adapter.switchTrack({ currentIndex: 0, currentTrackId: 'netease:target' }), true);
+    assert.ok(pauseTimes.some(at => at < resolvedAt - 150), 'pause must occur while Folia is still loading the selection');
+});
+
+test('target lyrics are held during READY and refreshed only after local GO', () => {
+    let refreshes = 0;
+    const folium = { playback: {}, omni: {}, lyrics: { refresh() { refreshes++; } },
+        ui: { toast() {} }, log: { warn() {} } };
+    const session = new PlaybackSession(folium, async () => {}, () => {});
+    session.core.setConnection(true, 'local');
+    session.room = { currentTrackId: 'netease:target', playing: false,
+        transition: { id: 't1', phase: 'preparing' } };
+    const event = { song: { source: 'netease', id: 'target' }, lines: [{ fullText: 'new lyric' }] };
+    session.transformLyrics(event);
+    assert.deepEqual(event.lines, []);
+    assert.equal(refreshes, 0);
+    session.room = { ...session.room, playing: true, transition: { id: 't1', phase: 'go' } };
+    session.core.machine.transition({ trackId: 'netease:target', status: 'playing', version: 1 });
+    assert.equal(refreshes, 1);
+    session.dispose();
+});
+
+test('the initiating peer pauses a newly selected song before room authority arrives', async t => {
+    const target = { source: 'netease', id: 'target', ref: 'target' };
+    let current = { source: 'netease', id: 'old', ref: 'old' };
+    let state = 'playing', pauseCount = 0;
+    const host = {
+        getState: () => ({ song: current, state, position: 0 }),
+        pause: () => { if (current === target) { pauseCount++; state = 'paused'; } },
+    };
+    let refreshes = 0;
+    const folium = { playback: host, omni: {}, lyrics: { refresh() { refreshes++; } },
+        ui: { toast() {} }, log: { warn() {} } };
+    const session = new PlaybackSession(folium, async () => {}, () => {});
+    t.after(() => session.dispose());
+    session.core.setConnection(true, 'local');
+    session.gate.setPaired(true);
+    session.room = { currentTrackId: 'netease:old', transition: null };
+    const event = { song: target, cancelled: false, cancel() { this.cancelled = true; } };
+    session.beforePlay(event);
+    assert.equal(event.cancelled, false);
+    assert.equal(session.isSwitching(), true);
+    const lyrics = { song: target, lines: [{ fullText: 'new lyric' }] };
+    session.transformLyrics(lyrics);
+    assert.deepEqual(lyrics.lines, [], 'local lyrics stay hidden before room authority arrives');
+    session.core.setConnection(false);
+    session.core.setConnection(true, 'local');
+    assert.equal(refreshes, 0, 'local prediction reset must not reveal lyrics before GO');
+    current = target;
+    await new Promise(resolve => setTimeout(resolve, 110));
+    assert.ok(pauseCount > 0, 'local selection must be paused before the room transition starts');
+    session.room = { currentTrackId: 'netease:target', playing: true,
+        transition: { id: 't1', phase: 'go' } };
+    session.stopSelectionGuard();
+    state = 'playing';
+    await new Promise(resolve => setTimeout(resolve, 70));
+    assert.equal(state, 'playing', 'the guard must release before GO starts playback');
+});
+
+test('an old GO snapshot cannot release the new selection pause guard', async t => {
+    const oldSong = { source: 'netease', id: 'old', ref: 'old' };
+    const folium = { playback: { getState: () => ({ song: oldSong, state: 'playing', position: 0 }),
+        pause() {} }, omni: {}, ui: { toast() {} }, log: { warn() {} } };
+    const session = new PlaybackSession(folium, async () => {}, () => {});
+    t.after(() => session.dispose());
+    session.core.setConnection(true, 'a');
+    session.gate.setPaired(true);
+    session.room = { serverId: 'room', sessionEpoch: 1, version: 1,
+        currentTrackId: 'netease:old', playing: true, transition: { id: 'old-go', phase: 'go' } };
+    session.core.machine.transition({ trackId: 'netease:old', status: 'playing', version: 1 });
+    session.beforePlay({ song: { source: 'netease', id: 'new', ref: 'new' }, cancel() {} });
+    session.pendingTrack = 'netease:new';
+    await session.accept({ state: { ...session.room, version: 2,
+        members: [{ senderId: 'a' }, { senderId: 'b' }] } }, true, 'a');
+    assert.equal(session.selectionGuard?.trackId, 'netease:new');
 });

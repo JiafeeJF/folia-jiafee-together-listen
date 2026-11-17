@@ -5,7 +5,7 @@ New-Item -ItemType Directory -Path $output -Force | Out-Null
 $packageItems = @(
   'mod.json', 'index.cjs', 'client.mjs', 'overlay-ui.mjs', 'styles.mjs',
   'accountSync.mjs', 'playback-core.mjs', 'playbackSession.mjs',
-  'foliumPlayerAdapter.mjs', 'queue-sync.mjs', 'vendorPlaybackCore.mjs',
+  'foliumPlayerAdapter.mjs', 'queue-sync.mjs', 'vendorPlaybackCore.mjs', 'track-selection-gate.mjs',
   'lib', 'vendor', 'preview.jpg', 'LICENSE', 'README.md'
 )
 $files = $packageItems | ForEach-Object { Join-Path $PSScriptRoot $_ }

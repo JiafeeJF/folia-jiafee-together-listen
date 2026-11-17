@@ -1,17 +1,21 @@
-import { canonicalSongKey, foliumLoopMode } from './playback-core.mjs?v=1.4.3';
-import { QueueSync } from './queue-sync.mjs?v=1.4.3';
+import { canonicalSongKey, foliumLoopMode } from './playback-core.mjs?v=1.4.5';
+import { QueueSync } from './queue-sync.mjs?v=1.4.5';
 
 // All host access is through the stable Folium playback and Omni services.
 // Official 0.7.28 pauses media after a fixed 200ms fade + 15ms timer grace.
 // A paused snapshot is not media-ready: also wait for its position to settle.
-const PAUSE_SETTLE_MS = 250;
+const PAUSE_SETTLE_MS = 700;
 const START_FADE_TOLERANCE_SECONDS = 0.5;
+const PREPARATION_TIMEOUT_MS = 8000;
+const MAX_PREPARATION_REBASES = 2;
 
 export class FoliumPlayerAdapter {
-    constructor(folium, currentRoom) {
+    constructor(folium, currentRoom, permitSelection = () => () => {}) {
         this.host = folium.playback;
         this.currentRoom = currentRoom;
+        this.permitSelection = permitSelection;
         this.generation = 0;
+        this.preparationTimeoutMs = PREPARATION_TIMEOUT_MS;
         this.lastSeek = null;
         this.queue = new QueueSync({ playback: this.host, omni: folium.omni,
             notice: message => folium.ui.toast(message, { type: 'error' }), log: folium.log,
@@ -63,7 +67,20 @@ export class FoliumPlayerAdapter {
         const generation = this.generation;
         const item = this.host.getQueue({ offset: 0, limit: 200 }).items[room.currentIndex];
         if (!item || canonicalSongKey(item.song) !== room.currentTrackId) return false;
-        const accepted = await this.host.playQueueItem(item.index, item.song.ref);
+        const release = this.permitSelection(item.song.ref);
+        let guardError = null;
+        // playQueueItem can start audio well before its promise resolves.
+        const guard = setInterval(() => {
+            if (generation !== this.generation) return;
+            try {
+                const state = this.readState();
+                if (state.trackId === room.currentTrackId && state.playing) this.pause();
+            } catch (error) { guardError = error; }
+        }, 40);
+        let accepted;
+        try { accepted = await this.host.playQueueItem(item.index, item.song.ref); }
+        finally { clearInterval(guard); release(); }
+        if (guardError) throw guardError;
         if (generation !== this.generation) return false;
         this.pause();
         return accepted && this.readState().trackId === room.currentTrackId;
@@ -72,13 +89,16 @@ export class FoliumPlayerAdapter {
         const generation = this.generation;
         if (!isCurrent() || this.readState().trackId !== trackId) return false;
         this.pauseAtStart();
-        const startedAt = Date.now();
+        let startedAt = Date.now(), rebases = 0;
+        const deadline = startedAt + this.preparationTimeoutMs;
         let stableSince = null, stablePosition = null;
         // Folium exposes a playback snapshot, not media canplay readiness. Never claim otherwise.
-        for (let attempt = 0; attempt < 40; attempt++) {
+        while (Date.now() < deadline) {
             if (generation !== this.generation || !isCurrent()) return false;
             const state = this.readState();
             const now = Date.now();
+            if (state.trackId !== trackId) return false;
+            if (state.playing) this.pause();
             const nearStart = state.trackId === trackId && state.status === 'paused'
                 && Number.isFinite(state.position) && state.position >= 0
                 && state.position <= START_FADE_TOLERANCE_SECONDS;
@@ -86,8 +106,18 @@ export class FoliumPlayerAdapter {
                 if (stablePosition === null || Math.abs(state.position - stablePosition) > 0.01) {
                     stableSince = now;
                     stablePosition = state.position;
-                } else if (now - stableSince >= 100) return true;
+                } else if (now - stableSince >= 150) return true;
             } else { stableSince = null; stablePosition = null; }
+            if (!nearStart && now - startedAt >= PAUSE_SETTLE_MS && rebases < MAX_PREPARATION_REBASES) {
+                // A late media start can undo the first pause or start past zero. Rebase only
+                // after observing that state, with a strict limit to avoid a seek loop.
+                if (generation !== this.generation || !isCurrent()) return false;
+                this.pauseAtStart();
+                startedAt = Date.now();
+                rebases++;
+                stableSince = null;
+                stablePosition = null;
+            }
             await new Promise(resolve => setTimeout(resolve, 50));
         }
         return false;

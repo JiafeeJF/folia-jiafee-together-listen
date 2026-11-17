@@ -1,5 +1,5 @@
-import { authoritativePosition } from './playback-core.mjs?v=1.4.3';
-import { OVERLAY_STYLE, PANEL_ENTRY_STYLE } from './styles.mjs?v=1.4.3';
+import { authoritativePosition } from './playback-core.mjs?v=1.4.5';
+import { OVERLAY_STYLE, PANEL_ENTRY_STYLE } from './styles.mjs?v=1.4.5';
 
 const node = (tag, className, text) => {
   const element = document.createElement(tag);
@@ -113,6 +113,7 @@ export function mountTogetherOverlay(folium, bridge, container, ctx, controller)
   const root = node('div', 'together-overlay-root');
   root.innerHTML = `
     <div class="together-control" data-role="control">
+      <div class="together-switch-notice" data-role="switch-notice" role="status" aria-live="polite" hidden><i aria-hidden="true"></i>正在切歌</div>
       <div class="together-modal-mask" data-role="menu" aria-hidden="true">
         <section class="together-panel" data-role="panel" role="dialog" aria-modal="false" aria-labelledby="together-panel-title">
           <header class="together-panel-head"><div><h2 id="together-panel-title">一起听</h2><p>双人联机大厅</p></div><button class="together-icon-btn" data-action="close-menu" type="button" title="关闭" aria-label="关闭">×</button></header>
@@ -181,6 +182,9 @@ export function mountTogetherOverlay(folium, bridge, container, ctx, controller)
   let chatExpanded = true;
   let lastMessageKey = '';
   let messageAudioContext = null;
+  let displayedTrack = null;
+  let displayedPosition = 0;
+  let displayedSession = '';
 
   const setMenuOpen = (open) => {
     if (menu.classList.contains('is-native-panel')) return;
@@ -260,12 +264,14 @@ export function mountTogetherOverlay(folium, bridge, container, ctx, controller)
     return wrap;
   };
 
-  const renderMember = (slot, member, fallback) => {
+  const renderMember = (slot, member, fallback, switching = false) => {
     const target = q(`[data-presence-slot="${slot}"]`);
-    target.dataset.memberState = member?.status || (slot ? 'offline' : 'connecting');
+    target.dataset.memberState = switching && member ? 'switching' : member?.status || (slot ? 'offline' : 'connecting');
     renderAvatar(target.querySelector('[data-role=presence-avatar]'), member?.avatar || (slot ? 'default:mono' : 'default:signal'), member?.name || fallback);
     target.querySelector('[data-role=presence-name]').textContent = member?.name || fallback;
-    target.querySelector('[data-role=presence-status]').textContent = member ? memberStatusText(member) : (slot ? '未连接' : '连接中');
+    target.querySelector('[data-role=presence-status]').textContent = member
+      ? memberStatusText(switching ? { ...member, status: 'switching' } : member)
+      : (slot ? '未连接' : '连接中');
     const expression = target.querySelector('[data-role=presence-expression]');
     const active = member?.expression && Number(member.expression.expiresAt) > Date.now();
     expression.hidden = !active;
@@ -308,6 +314,8 @@ export function mountTogetherOverlay(folium, bridge, container, ctx, controller)
     const status = bridge.status || {};
     const connected = status.connectionState === 'connected';
     const room = bridge.room || status.room || {};
+    const switching = connected && bridge.session.isSwitching();
+    q('[data-role=switch-notice]').hidden = !switching;
     q('[data-view=lobby]').hidden = connected || status.connectionState === 'reconnecting';
     q('[data-view=room]').hidden = !connected && status.connectionState !== 'reconnecting';
 
@@ -348,14 +356,23 @@ export function mountTogetherOverlay(folium, bridge, container, ctx, controller)
       q('[data-role=host-address]').textContent = host.connectionAddresses?.[0] || host.localAddress || '';
       q('[data-role=host-code]').textContent = host.authorizationCode || '------';
     }
-    const track = room.queue && room.currentIndex >= 0 ? room.queue[room.currentIndex] : null;
-    q('[data-role=track-title]').textContent = track?.name || '等待播放第一首歌';
-    q('[data-role=track-artist]').textContent = track?.artist || '请使用 Folia 原生播放器开始播放';
-    const position = authoritativePosition(room);
-    q('[data-role=progress]').style.width = `${track?.duration ? Math.min(100, position / track.duration * 100) : 0}%`;
+    const sessionKey = `${room.serverId || ''}:${room.sessionEpoch || ''}`;
+    if (displayedSession !== sessionKey) {
+      displayedSession = sessionKey;
+      displayedTrack = null;
+      displayedPosition = 0;
+    }
+    // Keep the panel on the last committed track until the GO operation has applied locally.
+    if (!switching) {
+      displayedTrack = room.queue && room.currentIndex >= 0 ? room.queue[room.currentIndex] : null;
+      displayedPosition = authoritativePosition(room);
+    }
+    q('[data-role=track-title]').textContent = displayedTrack?.name || '等待播放第一首歌';
+    q('[data-role=track-artist]').textContent = displayedTrack?.artist || '请使用 Folia 原生播放器开始播放';
+    q('[data-role=progress]').style.width = `${displayedTrack?.duration ? Math.min(100, displayedPosition / displayedTrack.duration * 100) : 0}%`;
     const members = [...(room.members || [])].sort((a, b) => a.senderId === status.clientId ? -1 : b.senderId === status.clientId ? 1 : 0);
-    renderMember(0, members[0], '等待成员');
-    renderMember(1, members[1], '等待好友');
+    renderMember(0, members[0], '等待成员', switching);
+    renderMember(1, members[1], '等待好友', switching);
 
     const message = bridge.lastMessage;
     const messageKey = message ? `${message.operationId}:${message.userId}:${message.time}` : '';

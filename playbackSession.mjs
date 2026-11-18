@@ -142,20 +142,6 @@ export class PlaybackSession {
         const intent = ++this.stateIntentVersion;
         const epoch = this.core.connectionEpoch;
         const actual = this.folium.playback.getState();
-        if (this.core.connected && !this.room?.currentTrackId
-            && value === 'playing' && actual.state === 'playing') {
-            // Folium's resume button has no pre-play hook. Keep the old displayed song paused
-            // until an explicit song choice creates the first authoritative transition.
-            this.adapter.pause();
-            if (!this.pendingTrack && !this.selectionGuard) {
-                const now = Date.now();
-                if (!this.lastFirstSongNoticeAt || now - this.lastFirstSongNoticeAt > 1800) {
-                    this.lastFirstSongNoticeAt = now;
-                    this.folium.ui.toast('请点播第一首你想听的歌', { type: 'info' });
-                }
-            }
-            return;
-        }
         if (!this.core.connected || this.pendingTrack || !this.room?.currentTrackId
             || ['preparing', 'awaiting-end'].includes(this.room.transition?.phase)
             || value !== actual.state || canonicalSongKey(actual.song) !== this.room.currentTrackId) return;
@@ -189,7 +175,6 @@ export class PlaybackSession {
     }
     disconnect(final = false) {
         this.stateIntentVersion++;
-        this.lastFirstSongNoticeAt = 0;
         this.stopSelectionGuard();
         this.gate.setPaired(false);
         this.core.setConnection(false);

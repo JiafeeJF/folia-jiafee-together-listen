@@ -1,6 +1,6 @@
-import { PlaybackSession } from './playbackSession.mjs?v=1.4.6';
-import { getLocalUserProfile } from './accountSync.mjs?v=1.4.6';
-import { mountTogetherOverlay, mountTogetherPanelEntry } from './overlay-ui.mjs?v=1.4.6';
+import { PlaybackSession } from './playbackSession.mjs?v=1.4.5';
+import { getLocalUserProfile } from './accountSync.mjs?v=1.4.5';
+import { mountTogetherOverlay, mountTogetherPanelEntry } from './overlay-ui.mjs?v=1.4.5';
 
 // UI/RPC composition; playback state belongs to PlaybackSession.
 export class FoliaTogetherBridge {

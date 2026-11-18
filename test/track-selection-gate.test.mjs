@@ -76,64 +76,6 @@ test('the playback hook blocks a second user choice but admits the authority swi
     session.dispose();
 });
 
-test('paired room waiting for its first song pauses a transport resume and prompts for a song', async () => {
-    let state = 'playing';
-    let pauses = 0;
-    const notices = [];
-    const folium = {
-        playback: {
-            getState: () => ({ song: { source: 'netease', id: 'old' }, state, position: 0 }),
-            pause: () => { pauses++; state = 'paused'; },
-        },
-        omni: {}, ui: { toast: message => notices.push(message) }, log: { warn() {} },
-    };
-    const session = new PlaybackSession(folium, async () => {}, () => {});
-    session.core.setConnection(true, 'local');
-    session.room = { members: [{ senderId: 'local' }, { senderId: 'peer' }], currentTrackId: '', queue: [] };
-    await session.state('playing');
-    assert.equal(pauses, 1);
-    assert.deepEqual(notices, ['请点播第一首你想听的歌']);
-    state = 'playing';
-    await session.state('playing');
-    assert.equal(pauses, 2);
-    assert.equal(notices.length, 1, 'rapid repeat presses share one notice');
-    session.disconnect();
-    session.core.setConnection(true, 'local');
-    state = 'playing';
-    await session.state('playing');
-    assert.equal(notices.length, 2, 'a new room may show the notice again');
-    session.dispose();
-});
-
-test('waiting-first-song guard stays out of solo playback and does not prompt during a song selection', async () => {
-    let state = 'playing';
-    let pauses = 0;
-    const notices = [];
-    const folium = {
-        playback: {
-            getState: () => ({ song: { source: 'netease', id: 'new' }, state, position: 0 }),
-            pause: () => { pauses++; state = 'paused'; },
-        },
-        omni: {}, ui: { toast: message => notices.push(message) }, log: { warn() {} },
-    };
-    const session = new PlaybackSession(folium, async () => {}, () => {});
-    session.room = { members: [{ senderId: 'local' }], currentTrackId: '', queue: [] };
-    await session.state('playing');
-    assert.equal(pauses, 0, 'solo playback remains unrestricted');
-    session.core.setConnection(true, 'local');
-    session.room.members.push({ senderId: 'peer' });
-    session.pendingTrack = 'netease:new';
-    await session.state('playing');
-    assert.equal(pauses, 1, 'selected first song remains paused until GO');
-    assert.deepEqual(notices, [], 'a selected song is not mistaken for a transport resume');
-    session.pendingTrack = '';
-    session.room.currentTrackId = 'netease:new';
-    state = 'playing';
-    await session.state('playing');
-    assert.equal(pauses, 1, 'normal playback after the first choice is not blocked');
-    session.dispose();
-});
-
 test('GO keeps the switching notice and lock until local playback is applied', () => {
     const folium = { playback: {}, omni: {}, ui: { toast() {} }, log: { warn() {} } };
     const session = new PlaybackSession(folium, async () => {}, () => {});

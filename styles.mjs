@@ -101,12 +101,7 @@ button { cursor: pointer; }
 .together-section { min-width:0; padding:9px; border:1px solid var(--tl-line); border-radius:10px; background:var(--tl-card); box-shadow:inset 0 1px 0 var(--tl-line); }
 .together-section-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:9px; }
 .together-section-head h3,.together-room-summary h3 { color:var(--tl-label); font-size:11.5px; font-weight:800; }
-.together-profile-section { padding:8px 10px; }
-.together-profile-editor { display:grid; grid-template-columns:42px minmax(0,1fr); align-items:center; gap:9px; }
-.together-profile-copy { min-width:0; display:grid; gap:2px; }
-.together-profile-copy h3 { margin:0; color:var(--tl-secondary); font-size:9px; font-weight:600; }
-.together-profile-copy strong { overflow:hidden; color:var(--tl-label); font-size:12px; line-height:1.25; font-weight:700; text-overflow:ellipsis; white-space:nowrap; }
-.together-profile-copy small { overflow:hidden; color:var(--tl-tertiary); font-size:9px; line-height:1.25; text-overflow:ellipsis; white-space:nowrap; }
+.together-profile-editor { display:grid; grid-template-columns:42px minmax(0,1fr); align-items:center; gap:8px; }
 .together-profile-avatar,.together-presence-avatar {
   width:40px; height:40px; padding:0; display:grid; place-items:center; overflow:hidden;
   border:1px solid var(--tl-avatar-line); border-radius:50%; color:var(--tl-avatar-ink);
@@ -117,7 +112,13 @@ button { cursor: pointer; }
 .together-profile-avatar.default-mono,.together-presence-avatar.default-mono { background:var(--tl-avatar-mono); }
 .together-profile-avatar.default-mint,.together-presence-avatar.default-mint { background:var(--tl-avatar-mint); }
 .together-profile-avatar img,.together-presence-avatar img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
-.together-profile-avatar,.together-profile-avatar img { opacity:1; filter:none; }
+.together-avatar-presets { grid-column:1/-1; min-height:28px; display:flex; align-items:center; justify-content:flex-start; gap:6px; }
+.together-avatar-presets button[data-avatar-preset] { width:23px; height:23px; padding:0; border:1px solid var(--tl-avatar-line); border-radius:50%; background:var(--tl-avatar-signal); }
+.together-avatar-presets button[data-avatar-preset="default:rose"] { background:var(--tl-avatar-rose); }
+.together-avatar-presets button[data-avatar-preset="default:mono"] { background:var(--tl-avatar-mono); }
+.together-avatar-presets button[data-avatar-preset="default:mint"] { background:var(--tl-avatar-mint); }
+.together-avatar-presets button.is-selected { box-shadow:0 0 0 2px rgba(var(--home-accent-rgb),.42); }
+.together-avatar-presets button:last-child { width:auto; min-height:28px; padding:0 9px; color:var(--tl-secondary); border:1px solid var(--tl-border); border-radius:8px; background:var(--tl-fill); }
 .together-form-row { display:grid; grid-template-columns:minmax(0,1fr) 92px; gap:7px; align-items:end; }
 .together-form-row label:first-child { grid-column:1/-1; }
 .together-connect-grid { display:grid; grid-template-columns:1fr; gap:7px; }

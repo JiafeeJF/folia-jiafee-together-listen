@@ -36,7 +36,7 @@ function fixture() {
 const room = (extra = {}) => ({ serverId: 'test', sessionEpoch: 2, version: 1, members: [{ senderId: 'a' }, { senderId: 'b' }],
     queue: [], currentIndex: -1, currentTrackId: '', playing: false, position: 0, mode: 'loop', lastAction: 'SESSION_RESET', ...extra });
 
-test('solo room never takes control; pairing clears queue and pauses once', async t => {
+test('solo room never takes control; legacy pairing clears the queue and pauses once', async t => {
     const f = fixture(); t.after(() => f.session.dispose());
     await f.session.accept({ state: room({ members: [{ senderId: 'a' }] }) }, true, 'a');
     assert.equal(f.calls.length, 0);
@@ -57,6 +57,7 @@ test('explicit selection seeds one paused song then NEXT playing, once', async t
     const f = fixture(); t.after(() => f.session.dispose());
     await f.session.accept({ state: room() }, true, 'a');
     const song = { source: 'netease', id: 'new', ref: 'new' };
+    f.session.beforePlay({ song, cancel: () => assert.fail('the first selection should be allowed') });
     f.select(song);
     await Promise.all([f.session.song(song), f.session.song(song)]);
     assert.deepEqual(f.sent.map(item => item[0]), ['RESYNC', 'NEXT']);

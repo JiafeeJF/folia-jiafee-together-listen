@@ -44,7 +44,17 @@ export class FoliumPlayerAdapter {
     }
     cancelPendingWait() { this.generation++; this.queue.cancel(); }
     async resetSessionPlayback(room) {
-        this.pauseAtStart();
+        this.lastSeek = null;
+        let cleared = false;
+        if (typeof this.host.clearCurrent === 'function') {
+            const result = await this.host.clearCurrent();
+            cleared = result === true || result?.ok === true;
+        }
+        if (!cleared) {
+            const current = this.readState();
+            if (current.trackId) this.pauseAtStart();
+            else if (current.playing) this.pause();
+        }
         await this.replace({ ...room, queue: [] });
     }
     async replace(room) {

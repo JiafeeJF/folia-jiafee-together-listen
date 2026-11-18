@@ -46,7 +46,7 @@ export class PlaybackSession {
         this.localExecution = this.localExecution.then(async () => {
             const track = serializeTrack(song);
             if (!this.core.connected || !track || this.pendingTrack === track.trackId) return;
-            if (!this.room.currentTrackId && !this.folium.playback.getQueue({ offset: 0, limit: 1 }).length) return;
+            if (!this.room.currentTrackId && this.selectionGuard?.trackId !== track.trackId) return;
             if (canonicalSongKey(this.folium.playback.getState().song) !== track.trackId || this.room?.currentTrackId === track.trackId) return;
             this.pendingTrack = track.trackId;
             this.notify();
@@ -142,6 +142,11 @@ export class PlaybackSession {
         const intent = ++this.stateIntentVersion;
         const epoch = this.core.connectionEpoch;
         const actual = this.folium.playback.getState();
+        if (this.core.connected && !this.room?.currentTrackId && value === 'playing'
+            && actual.state === 'playing' && this.selectionGuard?.trackId !== canonicalSongKey(actual.song)) {
+            this.adapter.pause();
+            return;
+        }
         if (!this.core.connected || this.pendingTrack || !this.room?.currentTrackId
             || ['preparing', 'awaiting-end'].includes(this.room.transition?.phase)
             || value !== actual.state || canonicalSongKey(actual.song) !== this.room.currentTrackId) return;

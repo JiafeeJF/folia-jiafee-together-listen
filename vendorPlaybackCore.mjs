@@ -243,7 +243,7 @@ const core = (() => {
       if (typeof this.adapter.resetPlaybackRate === 'function' && (!authority.playing || (transition && transition.phase !== 'go'))) this.adapter.resetPlaybackRate();
       var sessionKey = String(authority.serverId || '') + ':' + String(Math.max(0, Number(authority.sessionEpoch) || 0));
       if (sessionKey !== ':0' && sessionKey !== this.appliedSessionKey) {
-        if (typeof this.adapter.resetSessionPlayback === 'function') await this.adapter.resetSessionPlayback(authority);
+        if (!targetTrackId && typeof this.adapter.resetSessionPlayback === 'function') await this.adapter.resetSessionPlayback(authority);
         if (!this.isCurrentAuthority(epoch, version)) return { ignored: true, reason: 'superseded-during-session-reset' };
         this.appliedSessionKey = sessionKey;
         this.startedTransitionId = '';
@@ -310,7 +310,7 @@ const core = (() => {
       this.machine.transition({
         status: !targetTrackId ? 'idle' : (authority.playing ? (actual.playing ? 'playing' : 'buffering') : 'paused'),
         trackId: targetTrackId,
-        position: Number(actual.position) || Number(authority.position) || 0,
+        position: targetTrackId ? Number(actual.position) || Number(authority.position) || 0 : 0,
         version: version,
         lastOperationId: operationId,
       }, source);

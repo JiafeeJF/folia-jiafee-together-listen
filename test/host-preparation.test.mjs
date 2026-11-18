@@ -7,11 +7,16 @@ import { PlaybackSession } from '../playbackSession.mjs';
 function fixture(t, { refusesPause = false } = {}) {
     const song = { source: 'netease', id: 'test', ref: 'test' };
     let state = 'playing', position = 21, advancingSince = Date.now(), pauseTimer;
+    let queue = [{ index: 0, song }], queueVersion = 1;
     const calls = [];
     const readPosition = () => position + (advancingSince === null ? 0 : (Date.now() - advancingSince) / 1000);
     const host = {
         getState: () => ({ song, state, position: readPosition(), duration: 240 }),
-        getQueue: () => ({ items: [{ index: 0, song }], length: 1, currentIndex: 0, version: '1' }),
+        getQueue: () => ({ items: queue, length: queue.length, currentIndex: queue.length ? 0 : -1, version: String(queueVersion) }),
+        replaceQueue: async songs => {
+            queue = songs.map((item, index) => ({ index, song: item }));
+            return { status: 'replaced', length: queue.length, version: String(++queueVersion) };
+        },
         getLoopMode: () => 'all', setLoopMode() {},
         seek: value => {
             clearTimeout(pauseTimer); position = value; advancingSince = Date.now(); state = 'playing';
@@ -35,6 +40,65 @@ function fixture(t, { refusesPause = false } = {}) {
     t.after(() => clearTimeout(pauseTimer));
     return { folium, host, calls, setPosition: value => { position = value; advancingSince = null; } };
 }
+
+test('the second member clears both current songs and local queues once', async t => {
+    const sessions = [true, { ok: true }].map(result => {
+        const f = fixture(t), read = f.host.getState, errors = [];
+        let cleared = false;
+        f.host.getState = () => cleared ? { song: null, state: 'stopped', position: 0 } : read();
+        f.host.clearCurrent = () => {
+            cleared = true;
+            f.calls.push(['clearCurrent']);
+            return result;
+        };
+        const session = new PlaybackSession(f.folium, () => assert.fail('no playback command expected'), error => errors.push(error));
+        t.after(() => session.dispose());
+        return { ...f, session, errors };
+    });
+    const owner = { senderId: 'owner' }, guest = { senderId: 'guest' };
+    const idle = { serverId: 'room', sessionEpoch: 1, version: 2, status: 'idle',
+        members: [owner, guest], queue: [], currentIndex: -1, currentTrackId: '', playing: false, position: 0 };
+
+    await sessions[0].session.accept({ state: { ...idle, version: 1, members: [owner] } }, true, owner.senderId);
+    assert.deepEqual(sessions[0].calls, []);
+    assert.equal(sessions[0].host.getQueue().length, 1);
+    for (const [index, f] of sessions.entries()) {
+        const { senderId } = idle.members[index];
+        await f.session.accept({ action: 'SESSION_RESET', state: idle }, true, senderId);
+        await f.session.accept({ state: { ...idle, version: 3 } }, true, senderId);
+        assert.deepEqual(f.calls, [['clearCurrent']]);
+        assert.deepEqual(f.host.getState(), { song: null, state: 'stopped', position: 0 });
+        assert.deepEqual(f.host.getQueue(), { items: [], length: 0, currentIndex: -1, version: '2' });
+        assert.equal(f.session.core.machine.state.status, 'idle');
+        assert.deepEqual(f.errors, []);
+    }
+});
+
+test('legacy and refused clears reset the queue and ignore the previous song until a new selection', async t => {
+    for (const clearCurrent of [undefined, () => false]) {
+        const f = fixture(t), sent = [];
+        f.host.clearCurrent = clearCurrent;
+        const session = new PlaybackSession(f.folium, action => { sent.push(action); }, assert.fail);
+        t.after(() => session.dispose());
+        const room = { serverId: 'room', sessionEpoch: 1, version: 1, status: 'idle',
+            members: [{ senderId: 'a' }, { senderId: 'b' }], queue: [], currentIndex: -1,
+            currentTrackId: '', playing: false, position: 0 };
+        const song = f.host.getState().song;
+        await session.accept({ state: room }, true, 'a');
+        assert.deepEqual(f.calls, [['seek', 0], ['pause']]);
+        assert.equal(f.host.getQueue().length, 0);
+        assert.equal(session.core.machine.state.position, 0);
+        f.host.play();
+        await session.state('playing');
+        assert.equal(f.host.getState().state, 'paused');
+        await session.song(song);
+        assert.deepEqual(sent, []);
+
+        session.beforePlay({ song, cancel: () => assert.fail('the first selection should be allowed') });
+        await session.song(song);
+        assert.deepEqual(sent, ['RESYNC', 'NEXT']);
+    }
+});
 
 test('prepare survives seek-resumes and waits for the actual pause fade to settle', async t => {
     const f = fixture(t), adapter = new FoliumPlayerAdapter(f.folium, () => null);

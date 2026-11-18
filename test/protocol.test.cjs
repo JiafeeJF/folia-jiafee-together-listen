@@ -45,6 +45,32 @@ test('track and envelope validation keep the 2.3.0 wire shape', () => {
     assert.equal(MAX_RECONNECT_ATTEMPTS, 3);
 });
 
+test('a guest can leave and join again and is not tied to a replaced room at the same address', async (t) => {
+    const firstRoom = new RoomService({ serverId: 'original-room', name: 'Original', authorizationCode: '482731', port: 0 });
+    await firstRoom.start();
+    const guest = manager('Guest');
+    const replacement = new RoomService({ serverId: 'replacement-room', name: 'Replacement', authorizationCode: '641829', port: firstRoom.port });
+    t.after(async () => {
+        await guest.close();
+        await Promise.all([firstRoom.stop(), replacement.stop()]);
+    });
+    const address = `127.0.0.1:${firstRoom.port}`;
+    await guest.connect(address, { authorizationCode: '482731' });
+    await guest.leave();
+    await guest.connect(address, { authorizationCode: '482731' });
+    assert.equal(guest.status().room.serverId, 'original-room');
+
+    const reconnecting = nextEvent(guest, 'status', event => event.status.connectionState === 'reconnecting');
+    guest.socket.terminate();
+    await reconnecting;
+    await firstRoom.stop();
+    await replacement.start();
+    await assert.rejects(guest.connect(address, { authorizationCode: '482731' }), /授权码错误/);
+    const joined = await guest.connect(address, { authorizationCode: '641829' });
+    assert.equal(joined.connectionState, 'connected');
+    assert.equal(joined.room.serverId, 'replacement-room');
+});
+
 test('two native TCP clients authorize, synchronize authority and exchange chat', async (t) => {
     const service = new RoomService({
         serverId: 'test-server', name: 'Test Room', authorizationCode: '482731', port: 0,

@@ -173,6 +173,17 @@ test('account priority, logout fallback, avatar safety and no installation key d
     accounts.qq.status = 'signed-out';
     assert.equal(getLocalUserProfile(api).name, '未登录用户');
 });
+test('room closed displays a friendly disconnect notice instead of the protocol error', t => {
+    const f = fixture();
+    const toasts = [];
+    f.folium.ui.toast = (...args) => toasts.push(args);
+    f.folium.rpc = { call: async () => {} };
+    const bridge = new FoliaTogetherBridge(f.folium);
+    t.after(() => { bridge.dispose(); f.session.dispose(); });
+    bridge.handleMainEvent({ kind: 'error', code: 'ROOM_CLOSED' });
+    assert.deepEqual(toasts, [['房主断开连接，房间自动退出', { type: 'info' }]]);
+});
+
 test('profile refresh publishes changed account presentation without a second login', async () => {
     const calls = [];
     const f = fixture();

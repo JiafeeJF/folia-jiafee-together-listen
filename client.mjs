@@ -86,7 +86,8 @@ export class FoliaTogetherBridge {
         else if (event.kind === 'error') {
             this.session.pendingTrack = '';
             this.session.core.rejectPrediction(event.operationId);
-            this.report(new Error('联机错误：' + event.code));
+            if (event.code === 'ROOM_CLOSED') this.folium.ui.toast('房主断开连接，房间自动退出', { type: 'info' });
+            else this.report(new Error('联机错误：' + event.code));
         }
         this.notify();
     }

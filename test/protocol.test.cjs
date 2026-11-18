@@ -72,6 +72,21 @@ test('a guest can leave and join again and is not tied to a replaced room at the
     assert.equal(joined.room.serverId, 'replacement-room');
 });
 
+test('a host closing the room clears the guest session without reconnecting', async (t) => {
+    const service = new RoomService({ serverId: 'closing-room', authorizationCode: '482731', port: 0 });
+    await service.start();
+    const guest = manager('Guest');
+    t.after(async () => { await guest.close(); await service.stop(); });
+    await guest.connect(`127.0.0.1:${service.port}`, { authorizationCode: '482731' });
+    assert.ok(guest.status().room);
+    const closing = nextEvent(guest, 'error', event => event.code === 'ROOM_CLOSED');
+    const idle = nextEvent(guest, 'status', event => event.status.connectionState === 'idle');
+    const [, event] = await Promise.all([closing, idle, service.stop()]);
+    assert.equal(event.status.room, null);
+    assert.equal(event.status.target, '');
+    assert.equal(guest.reconnectTimer, null);
+});
+
 test('two native TCP clients authorize, synchronize authority and exchange chat', async (t) => {
     const service = new RoomService({
         serverId: 'test-server', name: 'Test Room', authorizationCode: '482731', port: 0,

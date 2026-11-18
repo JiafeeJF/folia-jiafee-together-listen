@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const { test } = require('node:test');
 const { once } = require('node:events');
 const { RoomService } = require('../lib/room-service.cjs');
+const { AuthoritativeRoom } = require('../lib/authoritative-room.cjs');
 const { TogetherListenManager, MAX_RECONNECT_ATTEMPTS } = require('../lib/manager.cjs');
 const { TYPES, sanitizeTrack, validateEnvelope } = require('../lib/protocol.cjs');
 
@@ -161,6 +162,23 @@ test('paired room stays empty until explicit first song and both READY before GO
     const started = (await go).state;
     assert.equal(started.playing, true);
     assert.equal(started.position, 0);
+});
+
+test('a missing peer cannot turn a single READY into GO', () => {
+    const room = new AuthoritativeRoom({ serverId: 'room', name: 'Room' });
+    const host = { senderId: 'host' }, guest = { senderId: 'guest' };
+    const track = { trackId: 'netease:100', provider: 'netease', providerId: '100', name: 'One' };
+    const apply = (type, senderId, operationId, payload) => room.apply({ type, senderId, operationId, payload });
+    room.setMembers([host, guest]);
+    apply(TYPES.RESYNC, 'host', 'seed', { snapshot: { queue: [track], currentIndex: 0, playing: false } });
+    apply(TYPES.NEXT, 'host', 'next', { targetTrackId: track.trackId });
+    const ready = { phase: 'loaded', transitionId: 'next', targetTrackId: track.trackId };
+    assert.equal(apply(TYPES.READY, 'host', 'host-ready', ready).go, false);
+    assert.equal(room.setMembers([host]).go, false);
+    assert.equal(apply(TYPES.READY, 'host', 'host-repeat-ready', ready).go, false);
+    assert.equal(room.state.playing, false);
+    assert.equal(room.setMembers([host, guest]).go, false);
+    assert.equal(apply(TYPES.READY, 'guest', 'guest-ready', ready).go, true);
 });
 
 test('saved server data never contains an authorization code', async () => {

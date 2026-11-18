@@ -18,7 +18,7 @@ export class PlaybackSession {
         this.lyricsHeld = false;
         this.selectionGuard = null;
         this.lastFirstTrackNoticeAt = -Infinity;
-        this.adapter = new FoliumPlayerAdapter(folium, () => this.room, ref => this.gate.permit(ref));
+        this.adapter = new FoliumPlayerAdapter(folium, () => this.room, ref => this.gate.permit(ref), () => !!this.selectionGuard);
         this.core = new PlaybackController({ adapter: this.adapter, send, onError: report,
             hasPendingLocalIntent: () => this.stateIntentCount > 0 || !!this.pendingTrack,
             onState: () => { this.releaseLyricsIfReady(); this.notify(); } });
@@ -37,6 +37,8 @@ export class PlaybackSession {
         this.core.setConnection(paired, clientId);
         if (paired && !this.timer) this.timer = setInterval(() => this.core.correctProgress(this.room), 1000);
         if (!paired) {
+            this.stopSelectionGuard();
+            this.adapter.abortPreparationAudio();
             this.lastFirstTrackNoticeAt = -Infinity;
             clearInterval(this.timer); this.timer = null;
             return Promise.resolve();
@@ -58,7 +60,7 @@ export class PlaybackSession {
             const clientId = this.core.clientId;
             this.core.setConnection(false);
             this.core.setConnection(true, clientId);
-            this.adapter.pauseAtStart();
+            if (this.adapter.readState().playing) this.adapter.pause();
             try {
                 if (!this.room.currentTrackId) {
                     await this.core.request('RESYNC', { snapshot: { queue: [track], currentIndex: 0,
@@ -67,7 +69,13 @@ export class PlaybackSession {
                     await this.core.request('QUEUE_ADD', { track, index: this.room.queue.length });
                 }
                 await this.core.dispatchLocal('NEXT', { targetTrackId: track.trackId, playing: true });
-            } catch (error) { this.pendingTrack = ''; this.notify(); throw error; }
+            } catch (error) {
+                this.pendingTrack = '';
+                this.stopSelectionGuard();
+                this.adapter.abortPreparationAudio();
+                this.notify();
+                throw error;
+            }
         });
         const result = this.localExecution;
         this.localExecution = result.catch(() => {});
@@ -123,6 +131,7 @@ export class PlaybackSession {
     }
     startSelectionGuard(trackId) {
         this.stopSelectionGuard();
+        this.adapter.holdPreparationAudio();
         const guard = { trackId, interval: null, timeout: null };
         guard.interval = setInterval(() => {
             if (!this.core.connected) { this.stopSelectionGuard(); return; }
@@ -131,10 +140,14 @@ export class PlaybackSession {
                 if (actual.trackId === trackId && actual.playing) this.adapter.pause();
             } catch (error) {
                 this.stopSelectionGuard();
+                this.adapter.abortPreparationAudio();
                 this.folium.log.warn('[Together] selection pause guard failed', error);
             }
         }, 40);
-        guard.timeout = setTimeout(() => this.stopSelectionGuard(), 15000);
+        guard.timeout = setTimeout(() => {
+            this.stopSelectionGuard();
+            this.adapter.abortPreparationAudio();
+        }, 15000);
         this.selectionGuard = guard;
         this.notify();
     }
@@ -195,6 +208,7 @@ export class PlaybackSession {
         this.stateIntentVersion++;
         this.lastFirstTrackNoticeAt = -Infinity;
         this.stopSelectionGuard();
+        this.adapter.abortPreparationAudio();
         this.gate.setPaired(false);
         this.core.setConnection(false);
         this.refreshHeldLyrics();

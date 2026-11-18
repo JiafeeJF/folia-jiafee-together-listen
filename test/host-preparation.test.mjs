@@ -76,25 +76,33 @@ test('the second member clears both current songs and local queues once', async 
 
 test('legacy and refused clears reset the queue and ignore the previous song until a new selection', async t => {
     for (const clearCurrent of [undefined, () => false]) {
-        const f = fixture(t), sent = [];
+        const f = fixture(t), sent = [], notices = [];
         f.host.clearCurrent = clearCurrent;
+        f.folium.ui.toast = message => notices.push(message);
         const session = new PlaybackSession(f.folium, action => { sent.push(action); }, assert.fail);
         t.after(() => session.dispose());
         const room = { serverId: 'room', sessionEpoch: 1, version: 1, status: 'idle',
             members: [{ senderId: 'a' }, { senderId: 'b' }], queue: [], currentIndex: -1,
             currentTrackId: '', playing: false, position: 0 };
         const song = f.host.getState().song;
+        assert.equal(session.isWaitingForFirstTrack(), false);
         await session.accept({ state: room }, true, 'a');
+        assert.equal(session.isWaitingForFirstTrack(), true);
         assert.deepEqual(f.calls, [['seek', 0], ['pause']]);
         assert.equal(f.host.getQueue().length, 0);
         assert.equal(session.core.machine.state.position, 0);
         f.host.play();
         await session.state('playing');
         assert.equal(f.host.getState().state, 'paused');
+        f.host.play();
+        await session.state('playing');
+        assert.equal(f.host.getState().state, 'paused');
+        assert.deepEqual(notices, ['请选择第一首歌']);
         await session.song(song);
         assert.deepEqual(sent, []);
 
         session.beforePlay({ song, cancel: () => assert.fail('the first selection should be allowed') });
+        assert.equal(session.isWaitingForFirstTrack(), false);
         await session.song(song);
         assert.deepEqual(sent, ['RESYNC', 'NEXT']);
     }

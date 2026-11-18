@@ -17,6 +17,7 @@ export class PlaybackSession {
         this.notify = notify;
         this.lyricsHeld = false;
         this.selectionGuard = null;
+        this.lastFirstTrackNoticeAt = -Infinity;
         this.adapter = new FoliumPlayerAdapter(folium, () => this.room, ref => this.gate.permit(ref));
         this.core = new PlaybackController({ adapter: this.adapter, send, onError: report,
             hasPendingLocalIntent: () => this.stateIntentCount > 0 || !!this.pendingTrack,
@@ -35,7 +36,11 @@ export class PlaybackSession {
         this.gate.observe(this.room);
         this.core.setConnection(paired, clientId);
         if (paired && !this.timer) this.timer = setInterval(() => this.core.correctProgress(this.room), 1000);
-        if (!paired) { clearInterval(this.timer); this.timer = null; return Promise.resolve(); }
+        if (!paired) {
+            this.lastFirstTrackNoticeAt = -Infinity;
+            clearInterval(this.timer); this.timer = null;
+            return Promise.resolve();
+        }
         if (this.pendingTrack && this.room.currentTrackId === this.pendingTrack && this.room.transition) this.pendingTrack = '';
         if (this.room.transition?.phase === 'go'
             && this.selectionGuard?.trackId === this.room.currentTrackId) this.stopSelectionGuard();
@@ -72,6 +77,9 @@ export class PlaybackSession {
         return this.core.connected && !this.core.executing && !this.pendingTrack
             && this.adapter.readState().trackId === this.room?.currentTrackId
             && this.room?.currentTrackId && !['preparing', 'awaiting-end'].includes(this.room.transition?.phase);
+    }
+    isWaitingForFirstTrack() {
+        return this.core.connected && !this.room?.currentTrackId && !this.isSwitching();
     }
     isSwitching() {
         if (!this.core.connected) return false;
@@ -145,6 +153,11 @@ export class PlaybackSession {
         if (this.core.connected && !this.room?.currentTrackId && value === 'playing'
             && actual.state === 'playing' && this.selectionGuard?.trackId !== canonicalSongKey(actual.song)) {
             this.adapter.pause();
+            const now = Date.now();
+            if (!this.core.executing && this.isWaitingForFirstTrack() && now - this.lastFirstTrackNoticeAt >= 1800) {
+                this.lastFirstTrackNoticeAt = now;
+                this.folium.ui.toast('请选择第一首歌', { type: 'info' });
+            }
             return;
         }
         if (!this.core.connected || this.pendingTrack || !this.room?.currentTrackId
@@ -180,6 +193,7 @@ export class PlaybackSession {
     }
     disconnect(final = false) {
         this.stateIntentVersion++;
+        this.lastFirstTrackNoticeAt = -Infinity;
         this.stopSelectionGuard();
         this.gate.setPaired(false);
         this.core.setConnection(false);

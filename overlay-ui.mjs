@@ -103,7 +103,7 @@ export function mountTogetherOverlay(folium, bridge, container, ctx, controller)
           <div class="together-room-view" data-view="room" hidden>
             <section class="together-room-summary"><div><h3 data-role="room-name">一起听服务器</h3><p data-role="room-state">0/2 · idle</p></div><div class="together-room-meta"><span class="together-network-quality" data-role="quality" data-quality="measuring"><i></i><span data-role="quality-text">检测线路</span></span><div class="together-members" data-role="members-label">等待成员</div></div></section>
             <section class="together-host-info" data-role="host" hidden><div class="together-host-details"><span>TCP 一起听服务器已开启 · 加入均需授权码</span><code data-role="host-address"></code><small>FRP 必须使用 type=tcp</small></div><div class="together-host-code"><span>授权码</span><strong data-role="host-code">------</strong></div><div class="together-host-actions"><button class="together-secondary-btn" data-action="copy-address" type="button">复制地址</button><button class="together-secondary-btn" data-action="copy-code" type="button">复制授权码</button></div></section>
-            <section class="together-now-playing"><div class="together-now-copy"><span>当前同步状态</span><h3 data-role="track-title">等待播放第一首歌</h3><p data-role="track-artist">请使用 Folia 原生播放器开始播放</p></div><div class="together-room-progress"><i data-role="progress"></i></div></section>
+            <section class="together-now-playing"><div class="together-now-copy"><span>当前同步状态</span><h3 data-role="track-title">等待播放第一首歌</h3><p data-role="track-artist"></p></div><div class="together-room-progress"><i data-role="progress"></i></div></section>
             <div class="together-room-footer"><span>断线后将自动重连并获取最新状态</span><button class="together-danger-btn" data-action="leave" type="button">断开连接</button></div>
           </div>
         </section>
@@ -328,7 +328,13 @@ export function mountTogetherOverlay(folium, bridge, container, ctx, controller)
       displayedPosition = authoritativePosition(room);
     }
     q('[data-role=track-title]').textContent = displayedTrack?.name || '等待播放第一首歌';
-    q('[data-role=track-artist]').textContent = displayedTrack?.artist || '请使用 Folia 原生播放器开始播放';
+    let trackDetail = displayedTrack?.artist || '';
+    if (!displayedTrack) {
+      if (bridge.session.isWaitingForFirstTrack()) trackDetail = '请选择第一首歌：从搜索结果或歌单中点播。';
+      else if (switching) trackDetail = '正在同步曲目…';
+      else if (connected) trackDetail = '好友加入后即可开始一起听。';
+    }
+    q('[data-role=track-artist]').textContent = trackDetail;
     q('[data-role=progress]').style.width = `${displayedTrack?.duration ? Math.min(100, displayedPosition / displayedTrack.duration * 100) : 0}%`;
     const members = [...(room.members || [])].sort((a, b) => a.senderId === status.clientId ? -1 : b.senderId === status.clientId ? 1 : 0);
     renderMember(0, members[0], '等待成员', switching);

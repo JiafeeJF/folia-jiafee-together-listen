@@ -1,5 +1,5 @@
 $ErrorActionPreference = 'Stop'
-$manifest = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'mod.json') -Raw | ConvertFrom-Json
+$manifest = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'mod.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 $output = Join-Path $PSScriptRoot 'dist'
 New-Item -ItemType Directory -Path $output -Force | Out-Null
 $packageItems = @(
@@ -14,4 +14,10 @@ foreach ($file in $files) {
 }
 $archive = Join-Path $output "jiafee-together-listen-$($manifest.version).zip"
 Compress-Archive -LiteralPath $files -DestinationPath $archive -Force
-Get-FileHash -LiteralPath $archive -Algorithm SHA256
+$stream = [IO.File]::OpenRead($archive)
+try {
+  $hasher = [Security.Cryptography.SHA256]::Create()
+  try { $hash = [BitConverter]::ToString($hasher.ComputeHash($stream)).Replace('-', '') }
+  finally { $hasher.Dispose() }
+} finally { $stream.Dispose() }
+[pscustomobject]@{ Algorithm = 'SHA256'; Hash = $hash; Path = $archive }

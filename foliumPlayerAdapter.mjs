@@ -1,5 +1,5 @@
-import { canonicalSongKey, foliumLoopMode } from './playback-core.mjs?v=1.4.5';
-import { QueueSync } from './queue-sync.mjs?v=1.4.5';
+import { canonicalSongKey, foliumLoopMode } from './playback-core.mjs?v=1.4.6';
+import { QueueSync } from './queue-sync.mjs?v=1.4.6';
 
 // All host access is through the stable Folium playback and Omni services.
 // Official 0.7.28 pauses media after a fixed 200ms fade + 15ms timer grace.

@@ -1,5 +1,5 @@
-import { authoritativePosition } from './playback-core.mjs?v=1.4.5';
-import { OVERLAY_STYLE, PANEL_ENTRY_STYLE } from './styles.mjs?v=1.4.5';
+import { authoritativePosition } from './playback-core.mjs?v=1.4.6';
+import { OVERLAY_STYLE, PANEL_ENTRY_STYLE } from './styles.mjs?v=1.4.6';
 
 const node = (tag, className, text) => {
   const element = document.createElement(tag);
